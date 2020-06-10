@@ -5,19 +5,21 @@ Created on Wed Jun  3 12:25:05 2020
 @author: alexl
 """
 import numpy as np
-from mpmath import cot
+#from mpmath import cot
 from matplotlib import pyplot as plt
+import matplotlib
 from copy import deepcopy
-from numba import jit
-import math
+#from numba import jit
+#import math
 r0=1
-
+#jList=[]
 def plot(k0=3*np.pi):
-    ks=np.arange(0,k0-0.01,step=0.05)
+    matplotlib.rcParams['text.usetex'] = True
+    ks=np.arange(0,k0-0.05,step=0.05)
     ys=np.zeros(len(ks))
     for i in range(len(ks)):
         ys[i]=errorFunc(ks[i],k0)
-    labelString="Error for k0="+str(np.round(k0,3))
+    labelString="Error for $\kappa_0$="+str(np.round(k0,3))
     plt.scatter(ks,ys,label=labelString,s=0.5)
     plt.legend()
     plt.title("Error")
@@ -27,7 +29,9 @@ def plot(k0=3*np.pi):
     
 class rootFind():
     """
-    Newton's Method implimentation for root finding
+    Root finding implimentation, with functionality for newton's method and
+    golden section root finding. Recomend use of golden section since it is 
+    more .
     
     Note for small k0 there is no root
     """
@@ -91,6 +95,13 @@ class rootFind():
             The increment by which we go up each time
             
         """
+        if self.bounds[0] is not None and self.bounds[1] is None:
+            if self.f(self.bounds[0])>0:
+                raise ValueError("f(self.bounds[0])>0")
+            deriv=self.fPrime(self.bounds[0])
+            xDistToYAxis=-self.f(self.bounds[0])/deriv
+            step=np.abs(xDistToYAxis/5)
+            
         increment=np.zeros(2)
         for i in range(len(increment)):
             if self.bounds[i] is None:
@@ -128,9 +139,10 @@ class rootFind():
         #print("AutoBounds: Final bounds are", np.round(self.bounds,5),"\n\n")
         self.x0=np.mean(self.bounds)
         
-    def derivApprox(self,x,dx=0.001):
+    def derivApprox(self,x,dx=1e-6):
         """
-        approximates the derivative if there isn't an analytical one
+        approximates the derivative if there isn't an analytical one for use
+        in newton's method
         """
         num=self.f(x+dx)-self.f(x)
         return num/dx
@@ -162,12 +174,27 @@ class rootFind():
         finding one so you have to take the absolute value of f in order
         to find the root
         """
-        gr = (math.sqrt(5) + 1) / 2
+        sqrt5=5**(1/2)
+        gr = np.float64( (sqrt5 + 1) / 2)
+        """
+        You would think that you don't need np.float64 around gr, and that
+        would be reasonable. Unfortunately it would also be wrong, something 
+        to do with mpf types.... im not sure what.
+        """
         def g(x):
-            return abs(self.f(x))
-        
+            """
+            abs turns minima finding into root finding method
+            
+            Again we need np.float64 around this or it breaks for some reason
+            """
+            return np.float64(abs(self.f(x)))
+        if None in self.bounds:
+            raise ValueError("goldenSection: None in self.bounds")
         a=self.bounds[0]
         b=self.bounds[1]
+        
+        if self.f(a)>=self.f(b):
+            raise ValueError("goldenSection: Bounds fucked up yo")
         c = b - (b - a) / gr
         d = a + (b - a) / gr
         while abs(c - d) > self.maxError:
@@ -180,7 +207,7 @@ class rootFind():
             #may lead to incorrect results or infinite loop
             c = b - (b - a) / gr
             d = a + (b - a) / gr
-
+            a,b,c,d=np.array([a,b,c,d]).astype(np.float64)
         return (b + a) / 2
     
 def errorFunc(k,k0=10*np.pi):
@@ -188,36 +215,82 @@ def errorFunc(k,k0=10*np.pi):
     The function we are attempting to find the roots of
     note that we cannot have k0>k
     
-    TODO: things break when you call this with k as an array
+    f(k,k0)=k+sqrt(k0**2 - k**2)*cot(r0*sqrt(k0**2 - k**2))
+    
+    Parameters
+    ------------
+    k: float, or ndarray
+        the parameter k, or kappa
+    k0: float, optional
+        the parameter k0, or kappa_0. note this cannot be an array, maybe I 
+        will add this functionality later, but it sounds like a pain
+        
+    Returns
+    --------
+    val: float or ndarray
+        float if k is float, ndarray if k is ndarray
+        this value is f(k,k0)=k+sqrt(k0**2 - k**2)*cot(r0*sqrt(k0**2 - k**2))
+        
+        or where k>= k0 it is float('inf')
     """
-    """
+    def cot(x):
+        return np.float64(np.cos(x)/np.sin(x))
+    
     if not isinstance(k,np.ndarray):
         if k>=k0:
             return float('inf')
-    
     else:
         locs=np.where(k>=k0)
-    """
-    if k>= k0:
-        return float('inf')
     k0Square=k0**2
     kSquare=k**2
     arg=(k0Square-kSquare)**(1/2)
     val=arg*cot(r0*arg)+k
+    if isinstance(k,np.ndarray):
+        val[locs]=float('inf')
+        
+    val=np.float64(val)
     return val
 
-def findRoot(k0,plot=False):
+def findRoot(k0,plot=False,start=0,step=0.05):
     """
-    Finds the first root
+    Finds the first root greater than start
+    This is the function kappa(kappa_0)
     
-    TODO: Generalize to nth root
+    Parameters
+    -----------
+    k0: float
+        The input value
+    plot: boolean, optional
+        True if you want to plot the function
+    rootNumber: int, optional
+        Which root you want to take, rootNumber==1 leads to the least root
+        greater than zero, rootNumber==2 leads to the second root greater
+        than zero etc
+    step: float, optional
+         the step size when stepping through to find a lower bound for
+         the root
+    
+    Returns
+    ---------
+    start: float
+        the next starting location
+    root: float
+        The root of erroFunc specified
     """
     def f(x):
         return errorFunc(x,k0)
-    x=0
-    while f(x)>0:
-        x+=0.1
-    # __init__(self,f,x0,bounds=[None,None],fPrime=None,maxError=0.001):
+    x=start
+    while f(x)>=0:
+        """
+        Looks where the sign changes from positive to negative and uses that
+        as a lower bound
+        """
+        x+=step
+        if x>k0:
+            print("findRoot: No root in this region")
+            return 0
+
+        # __init__(self,f,x0,bounds=[None,None],fPrime=None,maxError=0.001):
     rootFinder=rootFind(f,None,bounds=[x,None])
     root=rootFinder.goldenSection()
     if plot:
@@ -233,6 +306,77 @@ def findRoot(k0,plot=False):
         plt.show()
     return root
 
+def sameRoot(k0Start,k0Max,dk0,rootNumber=1):
+    """
+    tracks the nth root while varying k
+    
+    Parameters
+    ------------
+    k0Start: float
+        The starting k0
+    k0Max: float
+        The ending k0
+    dk0: float
+        The step
+    rootNumber: optional
+        which root you are interested in
+        
+    Returns:
+    --------
+    k0s: ndarray
+        the k0s used
+    roots: ndarray
+        The roots at each k0
+    """
+    
+    k0s=np.arange(k0Start,k0Max,dk0)
+    roots=np.zeros(len(k0s))
+    step=dk0/20
+    start=0
+    rootCounter=0
+    j=0
+    while j<len(k0s) and rootCounter<rootNumber:
+        def fj(x):
+            return errorFunc(x,k0s[j])
+        
+        if fj(start+step)>0 and fj(start)<0:
+            rootCounter+=1
+            """
+            print("sameRoot: rootCounter=",rootCounter)
+            print("sameRoot: start=",start)
+            print("sameRoot: fj(start)=",np.round(fj(start),5))
+            print("sameRoot: fj(start+step)=",np.round(fj(start+step),5))
+            """
+        start+=step
+        if start>k0s[j]:
+            #print("sameRoot: went to next j")
+            roots[j]=float('inf')
+            j+=1
+            start=0
+            rootCounter=0
+    #print("sameRoot: j=",j)
+    
+    if j>=len(k0s):
+        print("sameRoot: Failed out")
+        return k0s, roots
+    #print("j when entering root loop is", j)
+    for i in range(j,len(k0s)):
+        #print("sameRoot:i=",i)
+        def f(x):
+            return errorFunc(x,k0s[i])
+            
+        if start>k0s[i]:
+            roots[i]=0
+        else:
+            if i!=j:
+                start=deepcopy(roots[i-1])
+            while f(start)>0 and start<k0s[i]:
+                start+= dk0/20
+            if f(start)<0:
+                roots[i]=rootFind(f,None,bounds=[start,None]).goldenSection()
+            
+    return k0s,roots
+            
         
 def makeHist(data,dx,lowerBound,upperBound,windowSize=None):
     """

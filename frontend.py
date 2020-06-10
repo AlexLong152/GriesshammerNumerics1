@@ -41,7 +41,18 @@ def testRootFinding():
     x=rootInit.goldenSection()
     print("testRootFinding: [None,1], x0=None , Analytic Root is -4")
     print("testRootFinding: Found root was x=",np.round(x,decimals=5))
-
+    
+def testRootsOfErrorFunc():
+    """
+    Tests to make sure we are actually finding the roots of the error function
+    """
+    k0s,ks=kRootVSk0(False)
+    errors=np.zeros(len(ks))
+    for i in range(len(k0s)):
+        errors[i]=be.errorFunc(ks[i],k0s[i])
+    plt.scatter(ks,errors,s=0.5)
+    plt.show()
+    
 def threeDplot(func):
     """
     Makes a 3d plot of the error function, clipping the function above and 
@@ -87,7 +98,7 @@ def threeDplot(func):
     #matplotlib.rcParams['text.usetex'] = False
     #if you set this variable to zero at the end it spazes out for this one
     
-def probDist():
+def probDist(dx=0.005,dxHistrogramFactor=3,windowSizeFactor=240):
     """
     This is the thing we're actually after, the probability of finding k
     and a function of k
@@ -96,48 +107,54 @@ def probDist():
     dxHistrogram: the step between in the histogram
     windowSize: the size of the bin in the histogram
     """
-    dx=0.001
-    dxHistrogram=3*dx
-    windowSize=dxHistrogram*30
-    
     matplotlib.rcParams['text.usetex'] = True
+    
+    dxHistrogram=dxHistrogramFactor*dx
+    windowSize=dx*windowSizeFactor
+    minK0=np.pi/2+0.01
+    maxK0=30
+    
+    maxRootNumber=4
     fig, (ax0,ax1, ax2) = plt.subplots(1, 3,
                                      gridspec_kw={'width_ratios': [0.5,3, 1]})
+    for rootNumber in range(maxRootNumber):
+        k0s,ys=be.sameRoot(minK0,maxK0,dx,rootNumber=rootNumber)
+        locs=np.where(~np.isinf(ys))#where ys is not infinite
+        ys=ys[locs]
+        bins,yCounts=be.makeHist(ys,dxHistrogram,np.min(ys)+dxHistrogram+windowSize,
+                                 np.max(ys)-dxHistrogram-windowSize,windowSize)
+        
+        integral=dx*np.sum(yCounts)#TODO: actually get the scaling correct
+        prob=yCounts/integral
+        label="Root Number "+str(rootNumber+1)
+        ax1.scatter(bins, prob,label=label,s=0.5)
+    ax1.legend()
     
     
-    k0s=np.arange(np.pi/2+0.01,(3*np.pi/2)-0.01,step=dx)
-    ys=np.zeros(len(k0s))
-    for i in range(len(k0s)):
-        ys[i]=be.findRoot(k0s[i])
-    
-   
-    bins,yCounts=be.makeHist(ys,dxHistrogram,0,np.max(ys)+dxHistrogram,windowSize)
-    total=np.sum(yCounts)
-    prob=yCounts/total
     titleString="$\kappa $ probability vs measured $\kappa$ "
     titleString+="for $\kappa_0$ randomly distributed"
     fig.suptitle(titleString,fontsize=16)
-    
-    ax1.plot(bins, prob)
+        
+   
     #ax1.scatter(bins, prob,s=1)
     ax1.set_xlabel("Measured $\kappa$")
     #ax1.set_ylabel("Probability\n$P(\kappa)$",rotation=0)
     ax0.axis('off')
-    ax0.text(-1,0.5,"Probability\n    $\;\;\;P(\kappa)$")
+    ax0.text(-1,0.5,"Relative\n Probability \n    $\;\;\;P(\kappa)$")
     #ax0.text(-1,0.5,"Counts")
     ax1.xaxis.labelpad=0
     ax2.axis('off')
     
     dataString="\\underline{Values used} \n$r_0$="+str(np.round(r0,4))
     dataString+="\n$\kappa_0   \in ["
-    dataString+=str(np.round(np.min(k0s),4))+","+str(np.round(np.max(k0s),4))+"]$\n"
+    dataString+=str(np.round(minK0,4))+","+str(np.round(maxK0,4))+"]$\n"
     dataString+="$dx$="+str(np.round(dx,4))+"\n"
     dataString+="dxHistrogram="+str(np.round(dxHistrogram,4))+"\n"
     dataString+="windowSize="+str(np.round(windowSize,4))
     #print(dataString)
     ax2.text(0,0.75,dataString,fontsize=13)
     fig.show()
-    
+    #fig.legend()
     matplotlib.rcParams['text.usetex'] = False
     
 def kRootVSk0(showPlot=True):
@@ -150,6 +167,7 @@ def kRootVSk0(showPlot=True):
     k0Max=15
     k0s=np.arange(k0Min,k0Max,dk0)
     
+  
     ks=np.zeros(len(k0s))
     for i in range(len(ks)):
         ks[i]=be.findRoot(k0s[i])
@@ -172,15 +190,60 @@ def kRootVSk0(showPlot=True):
     matplotlib.rcParams['text.usetex'] = False
     return k0s,ks
 
+def testContinuousRoot(numRoots=2):
+    
+    
+    minval=1.7
+    maxval=45
+    step=0.05
+    
+    root=np.zeros((numRoots,len(np.arange(minval,maxval,step))))
+    for i in range(numRoots):
+        k0s,root[i]=be.sameRoot(minval,maxval,step,rootNumber=i+1)
+        #k0s are always the same so it doesnt matter
+    #a=np.arange(2,10*np.pi,0.1)[:75]
+    diffs=abs(root[0][1:]-root[0][:-1])
+    locs=np.where(diffs>0.75)
+    
+    if len(locs[0])!=0:
+        print("It broke")
+        matplotlib.rcParams['text.usetex'] = True
+        loc=locs[0][0],locs[1][0] #just get the first one, I don't feel like
+        #fixing it so that it does all of them
+        
+        ks=np.arange(k0s[loc]-2,k0s[loc]-0.1,0.005)
+        ys1=be.errorFunc(ks,k0s[loc])
+        ys2=be.errorFunc(ks,k0s[loc+1])
+        
+        plt.scatter(ks,ys1,s=0.5,c="red")
+        plt.axvline(root[loc], c="red",label="first location root")
+        
+        plt.scatter(ks,ys2,s=0.5,c="black")
+        plt.axvline(root[loc+1],c="black",label="next location root")
+        print(root[loc],root[loc+1])
+        lower,upper=np.sort([root[loc],root[loc+1]])
+        plt.xlim(lower-1,upper+1)
+        plt.ylim(-20,20)
+        plt.legend()
+        plt.ylabel("Error Function for two different $\kappa_0$")
+        plt.xlabel("$\kappa$")
+        plt.show()
+    else:
+        #print("Success!!")
+        matplotlib.rcParams['text.usetex'] = True
+        plt.plot(k0s,k0s,label="$\kappa = \kappa_0$")
+        for i in range(numRoots):
+            plt.plot(k0s,root[i],label="Root number "+str(i+1))
+        plt.xlabel("$\kappa_0$")
+        plt.ylabel("The root $\kappa$")
+        plt.title("$\kappa_0$ vs the root $\kappa$")
+        plt.legend()
+        plt.show()
+
 def main():
     probDist()
     #threeDplot(be.errorFunc)
-    """
-    k0s,ks=kRootVSk0(False)
-    errors=np.zeros(len(ks))
-    for i in range(len(k0s)):
-        errors[i]=be.errorFunc(ks[i],k0s[i])
-    plt.scatter(ks,errors,s=0.5)
-    """
+    #testContinuousRoot(8)
+
 if __name__ =="__main__":
     main()
