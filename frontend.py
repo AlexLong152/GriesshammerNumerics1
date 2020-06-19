@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jun  5 10:25:19 2020
-
 @author: alexl
 """
 
@@ -11,9 +10,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib
 from mpl_toolkits.mplot3d import Axes3D
+from copy import deepcopy
 
 def makeManyplots():
-    for k in np.arange(5,8,1):
+    for k in np.arange(5,8,1):  
         be.plot(k0=k)
         
 def testRootFinding():
@@ -111,14 +111,14 @@ def probDist(dx=0.005,dxHistrogramFactor=3,windowSizeFactor=240):
     
     dxHistrogram=dxHistrogramFactor*dx
     windowSize=dx*windowSizeFactor
-    minK0=np.pi/2+0.01
+    #minK0=np.pi/2+0.01
     maxK0=30
     
-    maxRootNumber=4
+    maxRootNumber=3
     fig, (ax0,ax1, ax2) = plt.subplots(1, 3,
                                      gridspec_kw={'width_ratios': [0.5,3, 1]})
     for rootNumber in range(maxRootNumber):
-        k0s,ys=be.sameRoot(minK0,maxK0,dx,rootNumber=rootNumber)
+        k0s,ys=be.sameRoot(maxK0,dx,rootNumber=rootNumber)
         locs=np.where(~np.isinf(ys))#where ys is not infinite
         ys=ys[locs]
         bins,yCounts=be.makeHist(ys,dxHistrogram,np.min(ys)+dxHistrogram+windowSize,
@@ -147,7 +147,7 @@ def probDist(dx=0.005,dxHistrogramFactor=3,windowSizeFactor=240):
     
     dataString="\\underline{Values used} \n$r_0$="+str(np.round(r0,4))
     dataString+="\n$\kappa_0   \in ["
-    dataString+=str(np.round(minK0,4))+","+str(np.round(maxK0,4))+"]$\n"
+    dataString+=str(np.round(np.pi/2 +0.0001,4))+","+str(np.round(maxK0,4))+"]$\n"
     dataString+="$dx$="+str(np.round(dx,4))+"\n"
     dataString+="dxHistrogram="+str(np.round(dxHistrogram,4))+"\n"
     dataString+="windowSize="+str(np.round(windowSize,4))
@@ -159,11 +159,26 @@ def probDist(dx=0.005,dxHistrogramFactor=3,windowSizeFactor=240):
     
 def kRootVSk0(showPlot=True):
     """
-    Plot of the roots of the function  k vs k0
+    Finds the first root greater than zero as a function of \kappa_0
+    
+    this function is unimportant and is of little interest
+    
+    Parameters
+    ------------
+    showPlot: boolean, optional
+        True if you want the function to be plotted
+    
+    Returns
+    ---------
+    k0s: 1-d ndarray
+        The \kappa_0 values used
+    ks: 1-d ndarray
+        the least value of \kappa such that the error function returns 
+        zero.
     """
     matplotlib.rcParams['text.usetex'] = True
     dk0=0.01
-    k0Min=1.9
+    k0Min=np.pi/2+0.001
     k0Max=15
     k0s=np.arange(k0Min,k0Max,dk0)
     
@@ -190,60 +205,75 @@ def kRootVSk0(showPlot=True):
     matplotlib.rcParams['text.usetex'] = False
     return k0s,ks
 
-def testContinuousRoot(numRoots=2):
+def continuousRoots(numRoots=5,maxval=45,step=0.05,rootStart=0):
+    """
+    Plots \kappa_\ell (\kappa_0) for \ell from rootStart to numRoots
     
-    
-    minval=1.7
-    maxval=45
-    step=0.05
-    
+    Parameters
+    --------------
+    numRoots: int, optional
+        the max root number \ell
+    maxval: float, optional,
+        the max value of \kappa_0
+    step: float, optional,
+        the step in \kappa_0
+    rootStart: int, optional
+        Which value of \ell you wish to start at, for increased computational
+        speed if you only care about higher value of \ell
+        
+    Returns
+    ------------
+    k0s: 1-d ndarray of floats
+        the \kappa_0 values used
+    root: 2-d ndarray of floats
+        the function \kappa_\ell(\kappa_0) the element
+        root[i][j] refers to root \ell=i+1 and the \kappa_0 corrisponding to 
+        it can be found at k0s[j]
+    """
+    minval=np.pi/2 +0.001
+    n=numRoots-1
+    tmp=(2*n+1)*np.pi/2
+    if tmp<maxval:
+        print("continuousRoots: maxVal too low for numRoots, value was increased")
+        maxval=tmp
+        
+    rootStart=0
     root=np.zeros((numRoots,len(np.arange(minval,maxval,step))))
-    for i in range(numRoots):
-        k0s,root[i]=be.sameRoot(minval,maxval,step,rootNumber=i+1)
+    for i in range(rootStart,numRoots):
+        k0s,root[i]=be.sameRoot(maxval,step,rootNumber=i+1)
         #k0s are always the same so it doesnt matter
-    #a=np.arange(2,10*np.pi,0.1)[:75]
-    diffs=abs(root[0][1:]-root[0][:-1])
-    locs=np.where(diffs>0.75)
     
-    if len(locs[0])!=0:
-        print("It broke")
-        matplotlib.rcParams['text.usetex'] = True
-        loc=locs[0][0],locs[1][0] #just get the first one, I don't feel like
-        #fixing it so that it does all of them
-        
-        ks=np.arange(k0s[loc]-2,k0s[loc]-0.1,0.005)
-        ys1=be.errorFunc(ks,k0s[loc])
-        ys2=be.errorFunc(ks,k0s[loc+1])
-        
-        plt.scatter(ks,ys1,s=0.5,c="red")
-        plt.axvline(root[loc], c="red",label="first location root")
-        
-        plt.scatter(ks,ys2,s=0.5,c="black")
-        plt.axvline(root[loc+1],c="black",label="next location root")
-        print(root[loc],root[loc+1])
-        lower,upper=np.sort([root[loc],root[loc+1]])
-        plt.xlim(lower-1,upper+1)
-        plt.ylim(-20,20)
-        plt.legend()
-        plt.ylabel("Error Function for two different $\kappa_0$")
-        plt.xlabel("$\kappa$")
-        plt.show()
-    else:
-        #print("Success!!")
-        matplotlib.rcParams['text.usetex'] = True
-        plt.plot(k0s,k0s,label="$\kappa = \kappa_0$")
-        for i in range(numRoots):
-            plt.plot(k0s,root[i],label="Root number "+str(i+1))
-        plt.xlabel("$\kappa_0$")
-        plt.ylabel("The root $\kappa$")
-        plt.title("$\kappa_0$ vs the root $\kappa$")
-        plt.legend()
-        plt.show()
+    """
+    tmp=deepcopy(root)
+    tmp[np.isinf(root)]=10*maxval
+    diffs=abs(tmp[:,1:]-tmp[:,:-1])
+    condition=(diffs>0.75) & (diffs<maxval)
+    locs=np.where(condition)
+    assert len(locs[0])==0
+    
+    For values of numRoots up to about 6, we can use the above commented out 
+    code to test if the roots finding algorithm didn't skip values,
+    however after this point the derivative at the
+    begining is very high, so it no longer works. This isn't a big deal 
+    becuase one can immedietly tell by inspection of the graph if we 
+    accidently jumped between roots
+    """
+    matplotlib.rcParams['text.usetex'] = True
+    plt.plot(k0s,k0s,label="$\kappa = \kappa_0$")
+    for i in range(rootStart,numRoots):
+        plt.plot(k0s,root[i],label="Root number "+str(i+1))
+    plt.xlabel("$\kappa_0$")
+    plt.ylabel("The root $\kappa$")
+    plt.title("$\kappa_0$ vs the root $\kappa$")
+    plt.legend()
+    plt.show()
+    
+    return k0s, root
 
 def main():
-    probDist()
-    #threeDplot(be.errorFunc)
-    #testContinuousRoot(8)
+    #probDist()
+    threeDplot(be.errorFunc)
+    #continuousRoots(8)
 
 if __name__ =="__main__":
     main()

@@ -1,18 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jun  3 12:25:05 2020
-
-@author: alexl
-"""
 import numpy as np
-#from mpmath import cot
 from matplotlib import pyplot as plt
 import matplotlib
 from copy import deepcopy
-#from numba import jit
-#import math
 r0=1
-#jList=[]
 def plot(k0=3*np.pi):
     matplotlib.rcParams['text.usetex'] = True
     ks=np.arange(0,k0-0.05,step=0.05)
@@ -35,7 +25,8 @@ class rootFind():
     
     Note for small k0 there is no root
     """
-    def __init__(self,f,x0,bounds=[None,None],fPrime=None,maxError=0.00001):
+    def __init__(self,f,x0=None,bounds=[None,None],fPrime=None,
+                 maxError=0.00001):
         """
         Paramters
         -------------
@@ -62,6 +53,7 @@ class rootFind():
         
         self.bounds=bounds
         allBoundsSet=not(None in self.bounds)
+        
         if self.x0 is None and allBoundsSet:
             #if all bounds are set and x0 is not set, then set it to be
             # the average of the bounds
@@ -78,67 +70,71 @@ class rootFind():
         if isinstance(self.bounds,list):
             #cast to array once everything is done
             self.bounds=np.array(self.bounds)
+        if self.x0 is None:
+            self.x0=(self.bounds[0]+self.bounds[1])/2
         
     def autoBounds(self,step=0.1):
-        """
-        Finds bounds such that the root is in between the bounds.
-        basically we look around x0, and while theyre f(lowerBound) and 
-        f(upperBound) are the same sign, we continue to increase the bounds.
-        
-        This takes care of two cases; when we just have x0, and when we don't
-        have x0, but we have one bound. The case when we have both bounds but 
-        no x0 is taken care of in the init
-        
-        Paramters
-        ----------
-        step: float, optional
-            The increment by which we go up each time
-            
-        """
-        if self.bounds[0] is not None and self.bounds[1] is None:
-            if self.f(self.bounds[0])>0:
-                raise ValueError("f(self.bounds[0])>0")
-            deriv=self.fPrime(self.bounds[0])
-            xDistToYAxis=-self.f(self.bounds[0])/deriv
-            step=np.abs(xDistToYAxis/5)
-            
-        increment=np.zeros(2)
-        for i in range(len(increment)):
-            if self.bounds[i] is None:
-                increment[i]=1#sets increment[i] to 1 if bounds[i] is None
-        increment=increment*np.array([-1,1])*step
-        #print("Autobounds: increment=",np.round(increment,5))
-        #print("Autobounds: starting bounds are:", self.bounds)
-        """
-        The increment array gets added to bounds each time until the bounds
-        truncate the root. The increment array is of the form 
-        [-step if bounds[0] is None, 0 otherwise,
-             +step if bounds[1] is None, 0 otherwise ]
-        """
-        #print("increment array is:", increment)
-        if self.x0 is None:
-            if np.array_equal(self.bounds,[None,None]):
-                #Check to make sure the lower bound is defined
-                raise ValueError("Bounds and x0 cannot all be None")
-            if self.bounds[0] is not None:
-                self.x0=self.bounds[0]
-            else:
-                self.x0=self.bounds[1]
-
-        testBounds=increment+self.x0
-        #print("First Test Bounds were", testBounds)
-        fOfBounds=np.array([self.f(y) for y in testBounds])
-        
-        while (np.sign(fOfBounds[0])==np.sign(fOfBounds[1])):
-            testBounds=testBounds+increment
-            fOfBounds=np.array([self.f(y) for y in testBounds])
-            
-        for i in (0,1):
-            if self.bounds[i] is None:
-                self.bounds[i]=testBounds[i]
-        #print("AutoBounds: Final bounds are", np.round(self.bounds,5),"\n\n")
-        self.x0=np.mean(self.bounds)
-        
+          """
+          Finds bounds such that the root is in between the bounds.
+          basically we look around x0, and while theyre f(lowerBound) and 
+          f(upperBound) are the same sign, we continue to increase the bounds.
+          
+          This takes care of two cases; when we just have x0, and when we don't
+          have x0, but we have one bound. The case when we have both bounds but 
+          no x0 is taken care of in the init
+          
+          Paramters
+          ----------
+          step: float, optional
+              The increment by which we go up each time
+              
+          """
+          if self.bounds[0] is not None and self.bounds[1] is None:
+              if self.f(self.bounds[0])>0:
+                  raise ValueError("f(self.bounds[0])>0")
+              deriv=self.fPrime(self.bounds[0])
+              xDistToYAxis=-self.f(self.bounds[0])/deriv
+              steptmp=np.abs(xDistToYAxis/10)
+              if steptmp<step:
+                  step=steptmp
+                  
+          increment=np.zeros(2)
+          for i in range(len(increment)):
+              if self.bounds[i] is None:
+                  increment[i]=1#sets increment[i] to 1 if bounds[i] is None
+          increment=increment*np.array([-1,1])*step
+          #print("Autobounds: increment=",np.round(increment,5))
+          #print("Autobounds: starting bounds are:", self.bounds)
+          """
+          The increment array gets added to bounds each time until the bounds
+          truncate the root. The increment array is of the form 
+          [-step if bounds[0] is None, 0 otherwise,
+               +step if bounds[1] is None, 0 otherwise ]
+          """
+          #print("increment array is:", increment)
+          if self.x0 is None:
+              if np.array_equal(self.bounds,[None,None]):
+                  #Check to make sure the lower bound is defined
+                  raise ValueError("Bounds and x0 cannot all be None")
+              if self.bounds[0] is not None:
+                  self.x0=self.bounds[0]
+              else:
+                  self.x0=self.bounds[1]
+      
+          testBounds=increment+self.x0
+          #print("First Test Bounds were", testBounds)
+          fOfBounds=np.array([self.f(y) for y in testBounds])
+          
+          while (np.sign(fOfBounds[0])==np.sign(fOfBounds[1])):
+              testBounds=testBounds+increment
+              fOfBounds=np.array([self.f(y) for y in testBounds])
+              
+          for i in (0,1):
+              if self.bounds[i] is None:
+                  self.bounds[i]=testBounds[i]
+          #print("AutoBounds: Final bounds are", np.round(self.bounds,5),"\n\n")
+          self.x0=np.mean(self.bounds)
+                
     def derivApprox(self,x,dx=1e-6):
         """
         approximates the derivative if there isn't an analytical one for use
@@ -188,13 +184,13 @@ class rootFind():
             Again we need np.float64 around this or it breaks for some reason
             """
             return np.float64(abs(self.f(x)))
-        if None in self.bounds:
-            raise ValueError("goldenSection: None in self.bounds")
+        assert(not (None in self.bounds))
+        
         a=self.bounds[0]
         b=self.bounds[1]
         
         if self.f(a)>=self.f(b):
-            raise ValueError("goldenSection: Bounds fucked up yo")
+            raise ValueError("goldenSection: Bounds messed up")
         c = b - (b - a) / gr
         d = a + (b - a) / gr
         while abs(c - d) > self.maxError:
@@ -254,7 +250,8 @@ def errorFunc(k,k0=10*np.pi):
 def findRoot(k0,plot=False,start=0,step=0.05):
     """
     Finds the first root greater than start
-    This is the function kappa(kappa_0)
+    
+    This function is unimportant
     
     Parameters
     -----------
@@ -306,9 +303,12 @@ def findRoot(k0,plot=False,start=0,step=0.05):
         plt.show()
     return root
 
-def sameRoot(k0Start,k0Max,dk0,rootNumber=1):
+
+def sameRoot(k0Max,dk0,rootNumber=1,k0Start=np.pi/2 +0.0001):
     """
-    tracks the nth root while varying k
+    tracks the nth root while varying k, if the root is not defined for that 
+    value of k, then returns float('inf') in that location of the array 
+    instead.
     
     Parameters
     ------------
@@ -328,64 +328,75 @@ def sameRoot(k0Start,k0Max,dk0,rootNumber=1):
     roots: ndarray
         The roots at each k0
     """
-    
     k0s=np.arange(k0Start,k0Max,dk0)
     roots=np.zeros(len(k0s))
-    step=dk0/20
-    start=0
-    rootCounter=0
-    j=0
-    while j<len(k0s) and rootCounter<rootNumber:
-        def fj(x):
-            return errorFunc(x,k0s[j])
-        
-        if fj(start+step)>0 and fj(start)<0:
-            rootCounter+=1
-            """
-            print("sameRoot: rootCounter=",rootCounter)
-            print("sameRoot: start=",start)
-            print("sameRoot: fj(start)=",np.round(fj(start),5))
-            print("sameRoot: fj(start+step)=",np.round(fj(start+step),5))
-            """
-        start+=step
-        if start>k0s[j]:
-            #print("sameRoot: went to next j")
-            roots[j]=float('inf')
-            j+=1
-            start=0
-            rootCounter=0
-    #print("sameRoot: j=",j)
+    n=rootNumber-1
+    tmp=(2*n+1)*np.pi/2
+    loc=np.where(k0s>tmp)[0]
+    minloc=np.min(loc)
+    roots[:minloc]=float('inf')
     
-    if j>=len(k0s):
-        print("sameRoot: Failed out")
-        return k0s, roots
-    #print("j when entering root loop is", j)
-    for i in range(j,len(k0s)):
-        #print("sameRoot:i=",i)
+    step=dk0/20
+    leftBound=0
+    while errorFunc(leftBound,k0s[minloc])>0:
+        leftBound+=step
+        
+    for i in range(minloc,len(k0s)):
         def f(x):
             return errorFunc(x,k0s[i])
+        while f(leftBound)>0:
+            leftBound+=step
             
-        if start>k0s[i]:
-            roots[i]=0
-        else:
-            if i!=j:
-                start=deepcopy(roots[i-1])
-            while f(start)>0 and start<k0s[i]:
-                start+= dk0/20
-            if f(start)<0:
-                roots[i]=rootFind(f,None,bounds=[start,None]).goldenSection()
+        rightBound=deepcopy(leftBound)+dk0
+        while f(rightBound)<0:
+            rightBound+=step
             
-    return k0s,roots
-            
+        roots[i]=rootFind(f,None,bounds=[leftBound,rightBound]).goldenSection()
+        #assert abs(f(roots[i]))<0.1
+        if abs(f(roots[i]))>0.1:
+            print("messed up")
+        leftBound=deepcopy(roots[i])#The start for the next loop
         
-def makeHist(data,dx,lowerBound,upperBound,windowSize=None):
+    return k0s, roots
+
+def makeHist(data,dx,lowerBound=None,upperBound=None,windowSize=None):
     """
-    My own histogram function becuase numpy's sucks
+    My own histogram function becuase numpy's sucks, with support 
+    for overlapping bins
     
-    Maybe in the future we can look at overlaping bins?
+    The counts are the number of occurences within windowSize/2 from a central
+    value say x, then we move to x+dx and repeat.
+    
+    Parameters
+    -----------
+    data: ndarray
+        The incoming data, will be flattened
+    dx: float
+        The step size
+    lowerBound: float, optional
+        The minimum value to start at, will be set to np.min(data) if not
+        assigned
+    upperBound: float, optional
+        The maximum value to start at, will be set to np.max(data) if not
+        assigned
+    windowSize: float, optional
+        The size of the window that we are interested in. windowSize>dx will
+        result in smoothing. 
+        
+    Returns
+    -----------
+    locs: 1-d ndarray
+        The locations of the central values
+    counts: 1-d ndarray
+        The number of occurences of values within windowSize in the data
     """
+    data=deepcopy(data.flatten())
     if windowSize is None:
         windowSize=dx
+    if lowerBound is None:
+        lowerBound=np.min(data)
+    if upperBound is None:
+        upperBound=np.max(data)
     locs=np.arange(lowerBound,upperBound,dx)
     counts=np.zeros(len(locs),dtype=int)
     for i in range(len(locs)-1):
@@ -397,11 +408,6 @@ def makeHist(data,dx,lowerBound,upperBound,windowSize=None):
 
 def main():
     plot()
-
-    
-    
-    
-    
     
     
     
