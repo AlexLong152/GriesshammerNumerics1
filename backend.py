@@ -26,7 +26,7 @@ class rootFind():
     Note for small k0 there is no root
     """
     def __init__(self,f,x0=None,bounds=[None,None],fPrime=None,
-                 maxError=0.00001):
+                 maxError=0.000001):
         """
         Paramters
         -------------
@@ -331,10 +331,11 @@ def sameRoot(k0Max,dk0,rootNumber=1,k0Start=np.pi/2 +0.0001):
     k0s=np.arange(k0Start,k0Max,dk0)
     roots=np.zeros(len(k0s))
     n=rootNumber-1
-    tmp=(2*n+1)*np.pi/2
+    tmp=(2*n+1)*np.pi/2#the minimum value of x that
     loc=np.where(k0s>tmp)[0]
-    minloc=np.min(loc)
-    roots[:minloc]=float('inf')
+    if len(loc)!=0:
+        minloc=np.min(loc)
+        roots[:minloc]=float('inf')
     
     step=dk0/20
     leftBound=0
@@ -390,13 +391,14 @@ def makeHist(data,dx,lowerBound=None,upperBound=None,windowSize=None):
     counts: 1-d ndarray
         The number of occurences of values within windowSize in the data
     """
-    data=deepcopy(data.flatten())
+    data=deepcopy(data)
+    data=data.flatten()
     if windowSize is None:
         windowSize=dx
     if lowerBound is None:
-        lowerBound=np.min(data)
+        lowerBound=np.min(data)+windowSize+dx
     if upperBound is None:
-        upperBound=np.max(data)
+        upperBound=np.max(data)-windowSize-dx
     locs=np.arange(lowerBound,upperBound,dx)
     counts=np.zeros(len(locs),dtype=int)
     for i in range(len(locs)-1):
